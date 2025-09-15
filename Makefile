@@ -43,16 +43,16 @@ seed seed-consistent:
 	$(DC) exec -T db psql -U $(DB_USER) -d $(DB_NAME) \
 		-v owners_count=$(owners) -v patients_per_owner=$(ppo) \
 		-v min_records=$(minr) -v max_records=$(maxr) -v appointment_prob=$(ap) \
-		-f - < ../sql/seed/seed_prisma_consistent.sql
+		-f - < sql/seed/seed_prisma_consistent.sql
 
 index-before:
-	$(DC) exec -T db psql -U $(DB_USER) -d $(DB_NAME) -f - < ../sql/indexing/explain_scan_before.sql
+	$(DC) exec -T db psql -U $(DB_USER) -d $(DB_NAME) -f - < sql/indexing/explain_scan_before.sql
 
 index-create:
-	$(DC) exec -T db psql -U $(DB_USER) -d $(DB_NAME) -f - < ../sql/indexing/create_idx_db_probes_created_at.sql
+	$(DC) exec -T db psql -U $(DB_USER) -d $(DB_NAME) -f - < sql/indexing/create_idx_db_probes_created_at.sql
 
 index-after:
-	$(DC) exec -T db psql -U $(DB_USER) -d $(DB_NAME) -f - < ../sql/indexing/explain_scan_after.sql
+	$(DC) exec -T db psql -U $(DB_USER) -d $(DB_NAME) -f - < sql/indexing/explain_scan_after.sql
 
 backup:
 	# run from repo root: DATABASE_URL=postgres://user:password@localhost:5435/mydb ./scripts/db-backup.sh
@@ -61,4 +61,3 @@ backup:
 restore:
 	# run from repo root: DATABASE_URL=... ./scripts/db-restore.sh backups/<file>.dump --force
 	@echo "Run: DATABASE_URL=postgres://user:password@localhost:5435/mydb ./scripts/db-restore.sh backups/<file>.dump --force"
-
