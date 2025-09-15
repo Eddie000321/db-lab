@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydb
+    ports:
+      - "5435:5432" # isolated from root compose (5434)
+    volumes:
+      - db_lab_data:/var/lib/postgresql/data
+
+volumes:
+  db_lab_data:
+
