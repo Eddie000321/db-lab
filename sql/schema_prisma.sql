@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS "User" (
   password     text NOT NULL,
   roles        text[] NOT NULL,
   "createdAt"  timestamptz NOT NULL DEFAULT now(),
-  "updatedAt"  timestamptz NOT NULL DEFAULT now()
+  "updatedAt"  timestamptz NOT NULL DEFAULT now(),
+  "deletedAt"  timestamptz
 );
 
 -- Owner
@@ -34,7 +35,8 @@ CREATE TABLE IF NOT EXISTS "Owner" (
   address      text NOT NULL,
   notes        text,
   "createdAt"  timestamptz NOT NULL DEFAULT now(),
-  "updatedAt"  timestamptz NOT NULL DEFAULT now()
+  "updatedAt"  timestamptz NOT NULL DEFAULT now(),
+  "deletedAt"  timestamptz
 );
 
 -- Patient
@@ -53,7 +55,8 @@ CREATE TABLE IF NOT EXISTS "Patient" (
   "ownerId"            text NOT NULL,
   "createdAt"          timestamptz NOT NULL DEFAULT now(),
   "updatedAt"          timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT fk_patient_owner FOREIGN KEY ("ownerId") REFERENCES "Owner"(id) ON DELETE CASCADE
+  "deletedAt"          timestamptz,
+  CONSTRAINT fk_patient_owner FOREIGN KEY ("ownerId") REFERENCES "Owner"(id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS idx_patient_owner_created ON "Patient"("ownerId","createdAt" DESC);
 
@@ -67,12 +70,16 @@ CREATE TABLE IF NOT EXISTS "MedicalRecord" (
   diagnosis    text NOT NULL,
   treatment    text NOT NULL,
   notes        text,
-  veterinarian text NOT NULL,
+  "veterinarianId"   text,
+  "veterinarianName" text NOT NULL,
   "createdAt"  timestamptz NOT NULL DEFAULT now(),
   "updatedAt"  timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT fk_record_patient FOREIGN KEY ("patientId") REFERENCES "Patient"(id) ON DELETE CASCADE
+  "deletedAt"  timestamptz,
+  CONSTRAINT fk_record_patient FOREIGN KEY ("patientId") REFERENCES "Patient"(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_record_veterinarian FOREIGN KEY ("veterinarianId") REFERENCES "User"(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_record_patient_visit ON "MedicalRecord"("patientId","visitDate" DESC);
+CREATE INDEX IF NOT EXISTS idx_record_vet_visit ON "MedicalRecord"("veterinarianId","visitDate" DESC);
 
 -- Appointment
 CREATE TABLE IF NOT EXISTS "Appointment" (
@@ -84,12 +91,16 @@ CREATE TABLE IF NOT EXISTS "Appointment" (
   reason       text NOT NULL,
   status       text NOT NULL DEFAULT 'scheduled',
   notes        text,
-  veterinarian text NOT NULL,
+  "veterinarianId"   text,
+  "veterinarianName" text NOT NULL,
   "createdAt"  timestamptz NOT NULL DEFAULT now(),
   "updatedAt"  timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT fk_appt_patient FOREIGN KEY ("patientId") REFERENCES "Patient"(id) ON DELETE CASCADE
+  "deletedAt"  timestamptz,
+  CONSTRAINT fk_appt_patient FOREIGN KEY ("patientId") REFERENCES "Patient"(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_appt_veterinarian FOREIGN KEY ("veterinarianId") REFERENCES "User"(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_appt_date ON "Appointment"(date DESC);
+CREATE INDEX IF NOT EXISTS idx_appt_vet_date ON "Appointment"("veterinarianId", date DESC);
 
 -- Bill
 CREATE TABLE IF NOT EXISTS "Bill" (
@@ -109,11 +120,11 @@ CREATE TABLE IF NOT EXISTS "Bill" (
   notes            text,
   "createdAt"      timestamptz NOT NULL DEFAULT now(),
   "updatedAt"      timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT fk_bill_owner      FOREIGN KEY ("ownerId")       REFERENCES "Owner"(id)      ON DELETE CASCADE,
-  CONSTRAINT fk_bill_patient    FOREIGN KEY ("patientId")     REFERENCES "Patient"(id)    ON DELETE CASCADE,
+  "deletedAt"      timestamptz,
+  CONSTRAINT fk_bill_owner      FOREIGN KEY ("ownerId")       REFERENCES "Owner"(id)      ON DELETE RESTRICT,
+  CONSTRAINT fk_bill_patient    FOREIGN KEY ("patientId")     REFERENCES "Patient"(id)    ON DELETE RESTRICT,
   CONSTRAINT fk_bill_appt       FOREIGN KEY ("appointmentId") REFERENCES "Appointment"(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_bill_created ON "Bill"("createdAt" DESC);
 
 -- Done
-

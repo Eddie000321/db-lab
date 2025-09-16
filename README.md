@@ -40,3 +40,17 @@ make seed owners=2000 ppo=3 minr=5 maxr=30 ap=0.7
 - This lab runs its own Postgres mapped to `localhost:5435` (to avoid conflict with root compose at 5434).
 - Seed file targets quoted table names ("Owner", "Patient", etc.) that mirror the Prisma schema used by the app.
 - You can safely use this lab without running the app; all SQL is standard PostgreSQL.
+
+## Database Design Highlights
+
+- Core entities mirror a veterinary workflow: `Owner` → `Patient` → `MedicalRecord`/`Appointment` → `Bill`.
+- Soft delete timestamps (`deletedAt`) and `ON DELETE RESTRICT` protect historical records even if owners or patients are deactivated.
+- `MedicalRecord`/`Appointment` keep both a `veterinarianId` FK and a cached display name so clinician history survives account changes.
+- Supporting indexes cover owner/patient filtering plus veterinarian-by-date lookups for audit or throughput reports.
+
+## Lab Scenarios To Try
+
+- Regenerate the schema (`make schema`) and play with seed sizes to benchmark query shapes on realistic datasets.
+- Compare `EXPLAIN (ANALYZE)` output before/after creating indexes using the `make index-*` targets.
+- Experiment with soft deletes by nulling `deletedAt` and inspecting how child tables enforce referential integrity.
+- Draft alternative schema ideas in SQL files, then swap them into the Make targets to prototype migrations safely.

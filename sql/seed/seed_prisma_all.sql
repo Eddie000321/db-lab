@@ -33,6 +33,11 @@ INSERT INTO "User" (id, email, username, "firstName", "lastName", password, role
   ('c'||encode(gen_random_bytes(12),'hex'), 'vet@vetchart.com',   'vet',   'Sarah', 'Wilson', 'hashed', ARRAY['veterinarian'], now(), now()),
   ('c'||encode(gen_random_bytes(12),'hex'), 'staff@vetchart.com', 'staff', 'Clinic','Staff',  'hashed', ARRAY['staff'], now(), now());
 
+CREATE TEMP TABLE tmp_veterinarian AS
+SELECT id, "firstName", "lastName"
+FROM "User"
+WHERE 'veterinarian' = ANY(roles);
+
 -- Temp table to keep mapping from ordinal -> id
 CREATE TEMP TABLE tmp_owner (g int, id text);
 INSERT INTO tmp_owner (g, id)
@@ -82,7 +87,12 @@ SELECT
   (5 + random()*100) AS weight,
   'lbs' AS weightUnit,
   o.id AS ownerId,
-  (ARRAY['J Han','J Lee','Sarah Wilson','Michael Brown'])[1 + (floor(random()*4))::int] AS assignedDoctor,
+  (
+    SELECT tv."firstName" || ' ' || tv."lastName"
+    FROM tmp_veterinarian tv
+    ORDER BY random()
+    LIMIT 1
+  ) AS assignedDoctor,
   CASE WHEN random() < 0.1 THEN 'inactive' ELSE 'active' END AS status,
   (ARRAY['easy','medium','hard'])[1 + (floor(random()*3))::int] AS handlingDifficulty,
   now() - (random()*interval '365 days') AS created_at,
@@ -110,7 +120,7 @@ SELECT id, "ownerId" FROM "Patient";
 WITH per_patient AS (
   SELECT tp.id AS pid FROM tmp_patient tp
 )
-INSERT INTO "MedicalRecord" (id, "patientId", "visitDate", "recordType", symptoms, diagnosis, treatment, notes, veterinarian, "createdAt", "updatedAt")
+INSERT INTO "MedicalRecord" (id, "patientId", "visitDate", "recordType", symptoms, diagnosis, treatment, notes, "veterinarianId", "veterinarianName", "createdAt", "updatedAt")
 SELECT
   'c'||encode(gen_random_bytes(12),'hex') AS id,
   pp.pid AS patientId,
@@ -123,17 +133,24 @@ SELECT
   (ARRAY['Rest + anti-inflammatory','Ear drops 10 days','Bland diet + probiotics','DHPP booster','Antibiotics 7 days'])
      [1 + (floor(random()*5))::int] AS treatment,
   CASE WHEN random() < 0.5 THEN 'Recheck in 1-2 weeks' ELSE NULL END AS notes,
-  (ARRAY['J Han','J Lee','Sarah Wilson','Michael Brown'])[1 + (floor(random()*4))::int] AS veterinarian,
+  vet.id,
+  vet.full_name,
   now() - (random()*interval '365 days') AS created_at,
   now() - (random()*interval '365 days') AS updated_at
 FROM per_patient pp
-CROSS JOIN generate_series(1, :records_per_patient) per_rec;
+CROSS JOIN generate_series(1, :records_per_patient) per_rec
+JOIN LATERAL (
+  SELECT tv.id, tv."firstName" || ' ' || tv."lastName" AS full_name
+  FROM tmp_veterinarian tv
+  ORDER BY random()
+  LIMIT 1
+) AS vet ON TRUE;
 
 -- 4) Appointments
 WITH per_patient AS (
   SELECT tp.id AS pid FROM tmp_patient tp
 )
-INSERT INTO "Appointment" (id, "patientId", date, time, duration, reason, status, notes, veterinarian, "createdAt", "updatedAt")
+INSERT INTO "Appointment" (id, "patientId", date, time, duration, reason, status, notes, "veterinarianId", "veterinarianName", "createdAt", "updatedAt")
 SELECT
   'c'||encode(gen_random_bytes(12),'hex') AS id,
   pp.pid AS patientId,
@@ -143,11 +160,18 @@ SELECT
   (ARRAY['Wellness exam','Vaccination','Follow-up','Surgery consult','Dental cleaning'])[1 + (floor(random()*5))::int] AS reason,
   (ARRAY['scheduled','completed','cancelled','no-show','scheduled','completed'])[1 + (floor(random()*6))::int] AS status,
   CASE WHEN random() < 0.3 THEN 'Handle gently' ELSE NULL END AS notes,
-  (ARRAY['J Han','J Lee','Sarah Wilson','Michael Brown'])[1 + (floor(random()*4))::int] AS veterinarian,
+  vet.id,
+  vet.full_name,
   now() - (random()*interval '120 days') AS created_at,
   now() - (random()*interval '120 days') AS updated_at
 FROM per_patient pp
-CROSS JOIN generate_series(1, :appts_per_patient) per_appt;
+CROSS JOIN generate_series(1, :appts_per_patient) per_appt
+JOIN LATERAL (
+  SELECT tv.id, tv."firstName" || ' ' || tv."lastName" AS full_name
+  FROM tmp_veterinarian tv
+  ORDER BY random()
+  LIMIT 1
+) AS vet ON TRUE;
 
 -- 5) Bills (items as JSONB; medicalRecordIds as text[])
 CREATE SEQUENCE IF NOT EXISTS bill_number_seq;

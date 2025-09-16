@@ -35,6 +35,11 @@ INSERT INTO "User" (id, email, username, "firstName", "lastName", password, role
   ('c'||encode(gen_random_bytes(12),'hex'), 'vet@vetchart.com',   'vet',   'Sarah', 'Wilson', 'hashed', ARRAY['veterinarian'], now(), now()),
   ('c'||encode(gen_random_bytes(12),'hex'), 'staff@vetchart.com', 'staff', 'Clinic','Staff',  'hashed', ARRAY['staff'], now(), now());
 
+CREATE TEMP TABLE tmp_veterinarian AS
+SELECT id, "firstName", "lastName"
+FROM "User"
+WHERE 'veterinarian' = ANY(roles);
+
 -- Temp owners
 CREATE TEMP TABLE tmp_owner (g int, id text);
 INSERT INTO tmp_owner (g, id)
@@ -85,7 +90,12 @@ SELECT
   (5 + random()*100) AS weight,
   'lbs' AS weightUnit,
   o.id AS ownerId,
-  (ARRAY['J Han','J Lee','Sarah Wilson','Michael Brown'])[1 + (floor(random()*4))::int] AS assignedDoctor,
+  (
+    SELECT tv."firstName" || ' ' || tv."lastName"
+    FROM tmp_veterinarian tv
+    ORDER BY random()
+    LIMIT 1
+  ) AS assignedDoctor,
   CASE WHEN random() < 0.1 THEN 'inactive' ELSE 'active' END AS status,
   (ARRAY['easy','medium','hard'])[1 + (floor(random()*3))::int] AS handlingDifficulty,
   now() - (random()*interval '365 days') AS created_at,
@@ -120,7 +130,7 @@ CROSS JOIN LATERAL (
 CROSS JOIN LATERAL generate_series(1, rc.rec_count) gs(n);
 
 -- Insert MedicalRecords from tmp_record
-INSERT INTO "MedicalRecord" (id, "patientId", "visitDate", "recordType", symptoms, diagnosis, treatment, notes, veterinarian, "createdAt", "updatedAt")
+INSERT INTO "MedicalRecord" (id, "patientId", "visitDate", "recordType", symptoms, diagnosis, treatment, notes, "veterinarianId", "veterinarianName", "createdAt", "updatedAt")
 SELECT
   tr.id,
   tr.patient_id,
@@ -133,15 +143,22 @@ SELECT
   (ARRAY['Rest + anti-inflammatory','Ear drops 10 days','Bland diet + probiotics','DHPP booster','Antibiotics 7 days'])
      [1 + (floor(random()*5))::int] AS treatment,
   CASE WHEN random() < 0.5 THEN 'Recheck in 1-2 weeks' ELSE NULL END AS notes,
-  (ARRAY['J Han','J Lee','Sarah Wilson','Michael Brown'])[1 + (floor(random()*4))::int] AS veterinarian,
+  vet.id,
+  vet.full_name,
   tr.visit_dt,
   tr.visit_dt
-FROM tmp_record tr;
+FROM tmp_record tr
+JOIN LATERAL (
+  SELECT tv.id, tv."firstName" || ' ' || tv."lastName" AS full_name
+  FROM tmp_veterinarian tv
+  ORDER BY random()
+  LIMIT 1
+) AS vet ON TRUE;
 
 -- Appointments: subset of records get one matching appointment
 CREATE TEMP TABLE tmp_appt AS
 WITH ins AS (
-  INSERT INTO "Appointment" (id, "patientId", date, time, duration, reason, status, notes, veterinarian, "createdAt", "updatedAt")
+  INSERT INTO "Appointment" (id, "patientId", date, time, duration, reason, status, notes, "veterinarianId", "veterinarianName", "createdAt", "updatedAt")
   SELECT
     'c'||encode(gen_random_bytes(12),'hex') AS id,
     tr.patient_id AS "patientId",
@@ -152,10 +169,17 @@ WITH ins AS (
     (CASE WHEN tr.visit_dt < now() THEN (ARRAY['completed','completed','completed','no-show'])[1 + (floor(random()*4))::int]
           ELSE 'scheduled' END) AS status,
     CASE WHEN random() < 0.3 THEN 'Handle gently' ELSE NULL END AS notes,
-    (ARRAY['J Han','J Lee','Sarah Wilson','Michael Brown'])[1 + (floor(random()*4))::int] AS veterinarian,
+    vet.id,
+    vet.full_name,
     tr.visit_dt,
     tr.visit_dt
   FROM tmp_record tr
+  JOIN LATERAL (
+    SELECT tv.id, tv."firstName" || ' ' || tv."lastName" AS full_name
+    FROM tmp_veterinarian tv
+    ORDER BY random()
+    LIMIT 1
+  ) AS vet ON TRUE
   WHERE random() < :appointment_prob
   RETURNING id, "patientId", date
 )
